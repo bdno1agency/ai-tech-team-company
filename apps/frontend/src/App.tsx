@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Activity, Bot, CheckCircle2, Cpu, Gauge, ListTodo, MessageSquare, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  Bot,
+  CheckCircle2,
+  Cpu,
+  Gauge,
+  ListTodo,
+  MessageSquare,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -22,39 +32,85 @@ type Task = {
   assignee: string;
 };
 
+type LogItem = {
+  id: number;
+  timestamp: string;
+  agent: string;
+  message: string;
+};
+
+type MemoryItem = {
+  title: string;
+  snippet: string;
+};
+
 const states = ['To Do', 'In Progress', 'Blocked', 'Done'];
 
+const fallbackAgents: Agent[] = [
+  { id: 'orchestrator', name: 'Orchestrator', status: 'running', current_task: 'Reviewing goals', model: 'gpt-4o-mini', cost: 0.12, health: 96 },
+  { id: 'developer', name: 'Developer', status: 'running', current_task: 'Building dashboard shell', model: 'gpt-4o-mini', cost: 0.09, health: 93 },
+  { id: 'qa', name: 'QA', status: 'idle', current_task: 'Ready for validation', model: 'gpt-4o-mini', cost: 0.04, health: 91 },
+];
+
+const fallbackTasks: Task[] = [
+  { id: 'task-1', title: 'Project setup', description: 'Initialize backend and frontend', status: 'Done', priority: 'high', assignee: 'Orchestrator' },
+  { id: 'task-2', title: 'Dashboard MVP', description: 'Create the initial control panel', status: 'In Progress', priority: 'high', assignee: 'Developer' },
+  { id: 'task-3', title: 'QA pass', description: 'Review and validate the MVP flow', status: 'To Do', priority: 'medium', assignee: 'QA' },
+];
+
+const fallbackLogs: LogItem[] = [
+  { id: 1, timestamp: '09:41', agent: 'Orchestrator', message: 'Assigned Developer to build the live dashboard shell.' },
+  { id: 2, timestamp: '09:47', agent: 'Developer', message: 'Built the Phase 1 dashboard layout and command flow.' },
+  { id: 3, timestamp: '09:53', agent: 'QA', message: 'Prepared validation checks for the MVP flow.' },
+];
+
+const fallbackMemory: MemoryItem[] = [
+  { title: 'Project bootstrap complete', snippet: 'The backend and frontend were scaffolded successfully and are ready for active tasking.' },
+  { title: 'Dashboard shell ready', snippet: 'The UI has a working task board, command console, and orchestrator panels.' },
+];
+
 export default function App() {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [agents, setAgents] = useState<Agent[]>(fallbackAgents);
+  const [tasks, setTasks] = useState<Task[]>(fallbackTasks);
+  const [logs, setLogs] = useState<LogItem[]>(fallbackLogs);
+  const [memory, setMemory] = useState<MemoryItem[]>(fallbackMemory);
   const [command, setCommand] = useState('Focus on mobile responsiveness');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const taskCounts = useMemo(
+    () => ({
+      total: tasks.length,
+      inFlight: tasks.filter((task) => task.status !== 'Done').length,
+      blocked: tasks.filter((task) => task.status === 'Blocked').length,
+    }),
+    [tasks]
+  );
+
   const fetchData = async () => {
     try {
-      const [agentRes, taskRes] = await Promise.all([
+      const [agentRes, taskRes, overviewRes] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/agents`),
         fetch(`${apiBaseUrl}/api/v1/tasks`),
+        fetch(`${apiBaseUrl}/api/v1/dashboard/overview`),
       ]);
 
-      const agentData = await agentRes.json();
-      const taskData = await taskRes.json();
+      const [agentData, taskData, overviewData] = await Promise.all([
+        agentRes.json(),
+        taskRes.json(),
+        overviewRes.json(),
+      ]);
 
       setAgents(agentData);
       setTasks(taskData);
+      setLogs(overviewData.logs || fallbackLogs);
+      setMemory(overviewData.memory || fallbackMemory);
     } catch (error) {
       console.error('Failed to load dashboard data', error);
-      setAgents([
-        { id: 'orchestrator', name: 'Orchestrator', status: 'running', current_task: 'Reviewing goals', model: 'gpt-4o-mini', cost: 0.12, health: 96 },
-        { id: 'developer', name: 'Developer', status: 'running', current_task: 'Building dashboard shell', model: 'gpt-4o-mini', cost: 0.09, health: 93 },
-        { id: 'qa', name: 'QA', status: 'idle', current_task: 'Ready for validation', model: 'gpt-4o-mini', cost: 0.04, health: 91 },
-      ]);
-      setTasks([
-        { id: 'task-1', title: 'Project setup', description: 'Initialize backend and frontend', status: 'Done', priority: 'high', assignee: 'Orchestrator' },
-        { id: 'task-2', title: 'Dashboard MVP', description: 'Create the initial control panel', status: 'In Progress', priority: 'high', assignee: 'Developer' },
-        { id: 'task-3', title: 'QA pass', description: 'Review and validate the MVP flow', status: 'To Do', priority: 'medium', assignee: 'QA' },
-      ]);
+      setAgents(fallbackAgents);
+      setTasks(fallbackTasks);
+      setLogs(fallbackLogs);
+      setMemory(fallbackMemory);
     }
   };
 
@@ -67,13 +123,13 @@ export default function App() {
   const submitCommand = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${apiBaseUrl}/api/v1/dashboard/command?command=${encodeURIComponent(command)}` , {
+      const response = await fetch(`${apiBaseUrl}/api/v1/dashboard/command?command=${encodeURIComponent(command)}`, {
         method: 'POST',
       });
       const data = await response.json();
-      setResult(data.result || 'Command accepted');
+      setResult(data.result || 'Command accepted by the Orchestrator.');
     } catch (error) {
-      setResult('Command accepted locally: the backend is unreachable, but the command console is ready.');
+      setResult('Command accepted locally: backend is unreachable, but the Orchestrator queue is ready.');
     } finally {
       setLoading(false);
     }
@@ -82,7 +138,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-7xl p-6">
-        <header className="mb-8 flex items-center justify-between border-b border-slate-800 pb-6">
+        <header className="mb-8 flex flex-col gap-4 border-b border-slate-800 pb-6 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-emerald-400">AI Tech Team Company</p>
             <h1 className="mt-2 text-3xl font-semibold">Human-in-the-loop command center</h1>
@@ -96,8 +152,8 @@ export default function App() {
         <section className="mb-8 grid gap-4 md:grid-cols-4">
           {[
             { label: 'Agents online', value: String(agents.length), icon: Bot },
-            { label: 'Tasks in flight', value: String(tasks.filter((task) => task.status !== 'Done').length), icon: ListTodo },
-            { label: 'Approval queue', value: '2', icon: ShieldCheck },
+            { label: 'Tasks in flight', value: String(taskCounts.inFlight), icon: ListTodo },
+            { label: 'Blocked', value: String(taskCounts.blocked), icon: ShieldCheck },
             { label: 'Success rate', value: '92%', icon: Gauge },
           ].map(({ label, value, icon: Icon }) => (
             <div key={label} className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-glow">
@@ -151,7 +207,7 @@ export default function App() {
             <textarea
               value={command}
               onChange={(e) => setCommand(e.target.value)}
-              className="h-28 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 outline-none ring-0 placeholder:text-slate-500"
+              className="h-28 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 outline-none placeholder:text-slate-500"
               placeholder="Type a command..."
             />
             <button
@@ -182,7 +238,7 @@ export default function App() {
                   <div className="space-y-3">
                     {tasks.filter((task) => task.status === state).map((task) => (
                       <div key={task.id} className="rounded-lg border border-slate-800 bg-slate-900 p-3">
-                        <div className="mb-2 flex items-center justify-between">
+                        <div className="mb-2 flex items-center justify-between gap-2">
                           <span className="text-sm font-medium text-slate-200">{task.title}</span>
                           <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] uppercase tracking-wider text-slate-300">
                             {task.priority}
@@ -236,6 +292,35 @@ export default function App() {
                 <div className="flex items-center justify-between"><span>Success rate</span><strong>92%</strong></div>
                 <div className="flex items-center justify-between"><span>Time/task</span><strong>14 min</strong></div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-6 xl:grid-cols-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-glow">
+            <h2 className="mb-4 text-xl font-semibold">Logs & traces</h2>
+            <div className="space-y-3">
+              {logs.map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm">
+                  <div className="mb-1 flex items-center justify-between text-slate-400">
+                    <span>{entry.agent}</span>
+                    <span>{entry.timestamp}</span>
+                  </div>
+                  <p className="text-slate-200">{entry.message}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-glow">
+            <h2 className="mb-4 text-xl font-semibold">Memory viewer</h2>
+            <div className="space-y-3">
+              {memory.map((entry, index) => (
+                <div key={`${entry.title}-${index}`} className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm">
+                  <div className="mb-1 font-medium text-emerald-300">{entry.title}</div>
+                  <p className="text-slate-300">{entry.snippet}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
