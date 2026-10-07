@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.v1.agent_config import router as agent_config_router
 from app.api.v1.agents import router as agents_router
+from app.api.v1.approvals import router as approvals_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.tasks import router as tasks_router
 from app.core.config import settings
@@ -18,6 +19,7 @@ app.include_router(agents_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")
 app.include_router(agent_config_router, prefix="/api/v1")
+app.include_router(approvals_router, prefix="/api/v1")
 
 
 @app.get("/health")

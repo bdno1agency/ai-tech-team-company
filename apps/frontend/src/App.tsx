@@ -54,6 +54,13 @@ type AgentConfig = {
   permissions: string[];
 };
 
+type ApprovalItem = {
+  id: string;
+  action: string;
+  reason: string;
+  status: string;
+};
+
 const states = ['To Do', 'In Progress', 'Blocked', 'Done'];
 
 const fallbackAgents: Agent[] = [
@@ -106,12 +113,18 @@ const fallbackConfig: AgentConfig[] = [
   },
 ];
 
+const fallbackApprovals: ApprovalItem[] = [
+  { id: 'approval-1', action: 'Deploy to production', reason: 'Requires owner approval', status: 'pending' },
+  { id: 'approval-2', action: 'Delete temp workspace', reason: 'Destructive action', status: 'pending' },
+];
+
 export default function App() {
   const [agents, setAgents] = useState<Agent[]>(fallbackAgents);
   const [tasks, setTasks] = useState<Task[]>(fallbackTasks);
   const [logs, setLogs] = useState<LogItem[]>(fallbackLogs);
   const [memory, setMemory] = useState<MemoryItem[]>(fallbackMemory);
   const [agentConfig, setAgentConfig] = useState<AgentConfig[]>(fallbackConfig);
+  const [approvals, setApprovals] = useState<ApprovalItem[]>(fallbackApprovals);
   const [command, setCommand] = useState('Focus on mobile responsiveness');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
@@ -127,18 +140,20 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [agentRes, taskRes, overviewRes, configRes] = await Promise.all([
+      const [agentRes, taskRes, overviewRes, configRes, approvalRes] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/agents`),
         fetch(`${apiBaseUrl}/api/v1/tasks`),
         fetch(`${apiBaseUrl}/api/v1/dashboard/overview`),
         fetch(`${apiBaseUrl}/api/v1/agent-config`),
+        fetch(`${apiBaseUrl}/api/v1/approvals`),
       ]);
 
-      const [agentData, taskData, overviewData, configData] = await Promise.all([
+      const [agentData, taskData, overviewData, configData, approvalData] = await Promise.all([
         agentRes.json(),
         taskRes.json(),
         overviewRes.json(),
         configRes.json(),
+        approvalRes.json(),
       ]);
 
       setAgents(agentData);
@@ -146,6 +161,7 @@ export default function App() {
       setLogs(overviewData.logs || fallbackLogs);
       setMemory(overviewData.memory || fallbackMemory);
       setAgentConfig(configData || fallbackConfig);
+      setApprovals(approvalData.length ? approvalData : fallbackApprovals);
     } catch (error) {
       console.error('Failed to load dashboard data', error);
       setAgents(fallbackAgents);
@@ -153,6 +169,7 @@ export default function App() {
       setLogs(fallbackLogs);
       setMemory(fallbackMemory);
       setAgentConfig(fallbackConfig);
+      setApprovals(fallbackApprovals);
     }
   };
 
@@ -174,6 +191,23 @@ export default function App() {
       setResult('Command accepted locally: backend is unreachable, but the Orchestrator queue is ready.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproval = async (approvalId: string, decision: 'approve' | 'reject') => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/v1/approvals/${approvalId}/${decision}`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      setResult(data.status === 'ok' ? `Approval ${decision}d for ${approvalId}` : 'Approval update processed.');
+      setApprovals((current) =>
+        current.map((item) =>
+          item.id === approvalId ? { ...item, status: decision === 'approve' ? 'approved' : 'rejected' } : item
+        )
+      );
+    } catch (error) {
+      setResult(`Approval ${decision}d locally for ${approvalId}.`);
     }
   };
 
@@ -311,13 +345,17 @@ export default function App() {
                 <ShieldCheck className="text-amber-400" size={18} />
               </div>
               <div className="space-y-3">
-                {[
-                  { action: 'Deploy to production', reason: 'Requires owner approval' },
-                  { action: 'Delete temp workspace', reason: 'Destructive action' },
-                ].map((item) => (
-                  <div key={item.action} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
+                {approvals.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
                     <div className="font-medium text-amber-200">{item.action}</div>
                     <div className="mt-1 text-amber-300/80">{item.reason}</div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400">{item.status}</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleApproval(item.id, 'approve')} className="rounded-md bg-emerald-500/20 px-2 py-1 text-[10px] uppercase tracking-wider text-emerald-200">Approve</button>
+                        <button onClick={() => handleApproval(item.id, 'reject')} className="rounded-md bg-red-500/20 px-2 py-1 text-[10px] uppercase tracking-wider text-red-200">Reject</button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
