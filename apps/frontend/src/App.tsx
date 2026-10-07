@@ -9,6 +9,7 @@ import {
   MessageSquare,
   ShieldCheck,
   Sparkles,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -44,6 +45,15 @@ type MemoryItem = {
   snippet: string;
 };
 
+type AgentConfig = {
+  name: string;
+  prompt: string;
+  model: string;
+  temperature: number;
+  tools: string[];
+  permissions: string[];
+};
+
 const states = ['To Do', 'In Progress', 'Blocked', 'Done'];
 
 const fallbackAgents: Agent[] = [
@@ -69,11 +79,39 @@ const fallbackMemory: MemoryItem[] = [
   { title: 'Dashboard shell ready', snippet: 'The UI has a working task board, command console, and orchestrator panels.' },
 ];
 
+const fallbackConfig: AgentConfig[] = [
+  {
+    name: 'Orchestrator',
+    prompt: 'Break goals into tasks, optimize assignments, and request approval before risky actions.',
+    model: 'gpt-4o-mini',
+    temperature: 0.2,
+    tools: ['memory_search', 'task_planner', 'approval_gate'],
+    permissions: ['read', 'write', 'approve_risky_actions'],
+  },
+  {
+    name: 'Developer',
+    prompt: 'Build features with maintainability and code quality as first priorities.',
+    model: 'gpt-4o-mini',
+    temperature: 0.3,
+    tools: ['file_system', 'docker_sandbox', 'github'],
+    permissions: ['read', 'write'],
+  },
+  {
+    name: 'QA',
+    prompt: 'Validate flows, identify bugs, and communicate severity clearly.',
+    model: 'gpt-4o-mini',
+    temperature: 0.1,
+    tools: ['test_runner', 'security_checks'],
+    permissions: ['read'],
+  },
+];
+
 export default function App() {
   const [agents, setAgents] = useState<Agent[]>(fallbackAgents);
   const [tasks, setTasks] = useState<Task[]>(fallbackTasks);
   const [logs, setLogs] = useState<LogItem[]>(fallbackLogs);
   const [memory, setMemory] = useState<MemoryItem[]>(fallbackMemory);
+  const [agentConfig, setAgentConfig] = useState<AgentConfig[]>(fallbackConfig);
   const [command, setCommand] = useState('Focus on mobile responsiveness');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
@@ -89,28 +127,32 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [agentRes, taskRes, overviewRes] = await Promise.all([
+      const [agentRes, taskRes, overviewRes, configRes] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/agents`),
         fetch(`${apiBaseUrl}/api/v1/tasks`),
         fetch(`${apiBaseUrl}/api/v1/dashboard/overview`),
+        fetch(`${apiBaseUrl}/api/v1/agent-config`),
       ]);
 
-      const [agentData, taskData, overviewData] = await Promise.all([
+      const [agentData, taskData, overviewData, configData] = await Promise.all([
         agentRes.json(),
         taskRes.json(),
         overviewRes.json(),
+        configRes.json(),
       ]);
 
       setAgents(agentData);
       setTasks(taskData);
       setLogs(overviewData.logs || fallbackLogs);
       setMemory(overviewData.memory || fallbackMemory);
+      setAgentConfig(configData || fallbackConfig);
     } catch (error) {
       console.error('Failed to load dashboard data', error);
       setAgents(fallbackAgents);
       setTasks(fallbackTasks);
       setLogs(fallbackLogs);
       setMemory(fallbackMemory);
+      setAgentConfig(fallbackConfig);
     }
   };
 
@@ -322,6 +364,31 @@ export default function App() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-glow">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Agent config panel</h2>
+            <SlidersHorizontal className="text-violet-400" size={18} />
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {agentConfig.map((config) => (
+              <div key={config.name} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="font-medium text-slate-100">{config.name}</span>
+                  <span className="rounded-full bg-violet-500/15 px-2 py-1 text-[10px] uppercase tracking-wider text-violet-200">
+                    {config.model}
+                  </span>
+                </div>
+                <p className="mb-3 text-xs text-slate-400">{config.prompt}</p>
+                <div className="space-y-2 text-xs text-slate-500">
+                  <div className="flex items-center justify-between"><span>Temp</span><strong>{config.temperature}</strong></div>
+                  <div className="flex items-center justify-between"><span>Tools</span><strong>{config.tools.length}</strong></div>
+                  <div className="flex items-center justify-between"><span>Permissions</span><strong>{config.permissions.length}</strong></div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       </div>
