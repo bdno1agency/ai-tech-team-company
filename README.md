@@ -2,25 +2,19 @@
 
 A multi-agent AI software company platform where every team member is an AI agent, controlled through a dashboard.
 
-## Phase 1 MVP
+## Phase 1 status
 
-This repository includes:
+The live Phase 1 dashboard is in progress on the `phase-1/live-dashboard` branch.
+
+### Included
 - FastAPI backend with agent endpoints
-- React + Tailwind + shadcn-inspired dashboard
-- Orchestrator, Developer, and QA agent skeletons
-- Shared in-memory/Chroma memory layer
-- Docker Compose setup for local development
-- Command console and Kanban task board
+- React + Tailwind dashboard shell
+- Orchestrator, Developer, and QA agent stubs
+- Shared memory abstraction
+- Docker Compose local environment
+- Live command console and task board
 
-## Stack
-- Backend: FastAPI
-- Frontend: React + Vite + Tailwind
-- Memory: Chroma (with in-memory fallback)
-- Database: PostgreSQL (config ready)
-- Queue: Celery + Redis (config ready)
-- Infra: Docker Compose
-
-## Quick start
+## Run locally
 
 ```bash
 cp .env.example .env
@@ -31,7 +25,7 @@ Then open:
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8000/docs
 
-## Folder structure
+## Project structure
 
 ```text
 ai-tech-team-company/
@@ -49,4 +43,4 @@ ai-tech-team-company/
 
 ## Notes
 
-This repo is built as a Phase 1 MVP scaffold. It is designed for rapid local development and future extension into the full multi-agent company platform described in the product brief.
+This repo is a working MVP scaffold for the full AI Tech Team Company system described in the product brief. The architecture is designed to extend toward full orchestration, approval gates, multi-agent collaboration, and execution sandboxing.
